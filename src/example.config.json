@@ -1,11 +1,11 @@
 {
   "discord": {
-    "owner_id": "",
-    "token": "",
-    "media_folder": ""
+    "owner_id": "<your discord id>",
+    "token": "<your bot token>",
+    "media_folder": "/path/to/your/media/folder/here/"
   },
   "stream": {
-    "ingest": "",
+    "ingest": "rtmp://fra-ingest.angelthump.com:1935/live/<your streamkey>",
     "subtitles": false
   }
 }
