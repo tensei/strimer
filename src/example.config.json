@@ -1,0 +1,11 @@
+{
+  "discord": {
+    "owner_id": "",
+    "token": "",
+    "media_folder": ""
+  },
+  "stream": {
+    "ingest": "",
+    "subtitles": false
+  }
+}
