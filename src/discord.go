@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
@@ -13,15 +14,22 @@ import (
 
 // TODO: control everything with discord commands
 
+type CommandContext struct {
+	s     *discordgo.Session
+	m     *discordgo.MessageCreate
+	regex string
+}
+
 var (
-	Commands = map[string]func(s *discordgo.Session, m *discordgo.MessageCreate){
-		"!add":        addFileCommand,
-		"!remove":     removeCommand,
-		"!skipnext":   skipCommand,
-		"!unskipnext": unskipCommand,
-		"!kill":       nextCommand,
-		"!current":    currentCommand,
-		"!search":     searchCommand,
+	Commands = map[string]func(ctx CommandContext){
+		`^!add(:a\d+)?(:s\d+)?$`: addFileCommand,
+		"^!remove$":              removeCommand,
+		"^!skipnext$":            skipCommand,
+		"^!unskipnext$":          unskipCommand,
+		"^!kill$":                nextCommand,
+		"^!current$":             currentCommand,
+		"^!search$":              searchCommand,
+		"^!filestreams$":         showFileStreamsCommand,
 	}
 )
 
@@ -48,13 +56,16 @@ func commandHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 
 	args := strings.SplitN(m.Content, " ", 2)
-	if c, ok := Commands[args[0]]; ok {
-		go c(s, m)
+	for c, f := range Commands {
+		if ok, _ := regexp.MatchString(c, args[0]); ok {
+			go f(CommandContext{s, m, c})
+			return
+		}
 	}
 }
 
-func addFileCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
-	args := strings.SplitN(m.Content, " ", 2)
+func addFileCommand(ctx CommandContext) {
+	args := strings.SplitN(ctx.m.Content, " ", 2)
 	if len(args) < 2 {
 		return
 	}
@@ -75,8 +86,24 @@ func addFileCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 	if file != "" {
-		strims.AddFile(file)
-		s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
+		m := regexp.MustCompile(ctx.regex).FindAllStringSubmatch(args[0], -1)
+		a, s := "0", "0"
+		if len(m) > 0 {
+			for _, arg := range m[0][1:] {
+				if arg == "" {
+					continue
+				}
+				log.Println(arg, "jj")
+				if arg[1] == 'a' {
+					a = arg[2:]
+				}
+				if arg[1] == 's' {
+					s = arg[2:]
+				}
+			}
+		}
+		strims.AddFile(file, a, s)
+		ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
 			Color:       0x7CFC00,
 			Title:       "Added to queue",
 			Description: filepath.Base(file),
@@ -90,52 +117,52 @@ func addFileCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
+	ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
 		Color:       0xFFA500,
 		Description: fmt.Sprintf("couldn't find file for %s", args[1]),
 	})
 }
 
-func nextCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
+func nextCommand(ctx CommandContext) {
 	err := strims.CurrentStream.Kill()
 	if err != nil {
 		log.Println(err)
 	}
 
-	s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
+	ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
 		Color:       0xff0000,
 		Description: fmt.Sprintf("Killed current stream %s", filepath.Base(strims.CurrentStream.File)),
 	})
 }
 
-func skipCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
+func skipCommand(ctx CommandContext) {
 	if len(strims.Queue) <= 0 {
-		s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
+		ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
 			Description: "Queue is empty",
 		})
 		return
 	}
 	strims.SkipNext = true
-	s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
+	ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
 		Description: "Skipping next file " + filepath.Base(strims.Queue[0].File),
 	})
 }
 
-func unskipCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
+func unskipCommand(ctx CommandContext) {
 	strims.SkipNext = false
-	s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
+	ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
 		Description: "Unskipping next file",
 	})
 }
 
-func removeCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
-	args := strings.SplitN(m.Content, " ", 2)
+func removeCommand(ctx CommandContext) {
+	args := strings.SplitN(ctx.m.Content, " ", 2)
 	if len(args) < 2 {
 		return
 	}
 
 	if !containsFile(strims.Queue, args[1]) {
-		s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
+		ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
 			Description: fmt.Sprintf("%s not in Queue", args[1]),
 		})
 		return
@@ -143,7 +170,7 @@ func removeCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	for i, st := range strims.Queue {
 		if strings.EqualFold(filepath.Base(st.File), args[1]) {
-			s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
+			ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
 				Color:       0xff0000,
 				Description: "Removed file " + filepath.Base(st.File),
 			})
@@ -157,14 +184,14 @@ func removeCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 }
 
-func currentCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
+func currentCommand(ctx CommandContext) {
 	if strims.CurrentStream == nil {
-		s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
+		ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
 			Description: "Streaming nothing atm",
 		})
 		return
 	}
-	s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
+	ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
 		Title: filepath.Base(strims.CurrentStream.File),
 		Color: 0x7CFC00,
 		Fields: []*discordgo.MessageEmbedField{
@@ -176,8 +203,8 @@ func currentCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 	})
 }
 
-func searchCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
-	args := strings.SplitN(m.Content, " ", 2)
+func searchCommand(ctx CommandContext) {
+	args := strings.SplitN(ctx.m.Content, " ", 2)
 	if len(args) < 2 {
 		return
 	}
@@ -203,7 +230,7 @@ func searchCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if len(d) > 2000 {
 		d = d[:1997] + "..."
 	}
-	s.ChannelMessageSendEmbed(m.ChannelID, &discordgo.MessageEmbed{
+	ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
 		Title:       "Search",
 		Color:       0x7CFC00,
 		Description: d,
@@ -213,6 +240,42 @@ func searchCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 				Value: fmt.Sprintf("%d", len(file)),
 			},
 		},
+	})
+}
+
+func showFileStreamsCommand(ctx CommandContext) {
+	args := strings.SplitN(ctx.m.Content, " ", 2)
+	if len(args) < 2 {
+		return
+	}
+
+	file := ""
+	err := filepath.Walk(config.Discord.MediaFolder, func(path string, f os.FileInfo, err error) error {
+		if f.IsDir() {
+			return nil
+		}
+		if strings.EqualFold(f.Name(), args[1]) {
+			file = path
+			return io.EOF
+		}
+		return nil
+	})
+	if err != nil && err != io.EOF {
+		log.Println(err)
+		return
+	}
+	if file != "" {
+		ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
+			Color:       0x7CFC00,
+			Title:       "File Streams",
+			Description: getStreams(file),
+		})
+		return
+	}
+
+	ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
+		Color:       0xFFA500,
+		Description: fmt.Sprintf("couldn't find file for %s", args[1]),
 	})
 }
 
