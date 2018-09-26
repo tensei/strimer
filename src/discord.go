@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -168,17 +169,21 @@ func removeCommand(ctx CommandContext) {
 		return
 	}
 
+	strims.QueueMutex.Lock()
+	defer strims.QueueMutex.Unlock()
+
 	for i, st := range strims.Queue {
+		if st == nil {
+			continue
+		}
 		if strings.EqualFold(filepath.Base(st.File), args[1]) {
 			ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
 				Color:       0xff0000,
 				Description: "Removed file " + filepath.Base(st.File),
 			})
-			strims.QueueMutex.Lock()
 			copy(strims.Queue[i:], strims.Queue[i+1:])
 			strims.Queue[len(strims.Queue)-1] = nil
 			strims.Queue = strims.Queue[:len(strims.Queue)-1]
-			strims.QueueMutex.Unlock()
 		}
 	}
 
@@ -198,6 +203,10 @@ func currentCommand(ctx CommandContext) {
 			&discordgo.MessageEmbedField{
 				Name:  "Started",
 				Value: strims.CurrentStream.StartTime.UTC().Format("15:04:05 MST"),
+			},
+			&discordgo.MessageEmbedField{
+				Name:  "Current time",
+				Value: time.Now().UTC().Format("15:04:05 MST"),
 			},
 		},
 	})
