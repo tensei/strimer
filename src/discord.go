@@ -13,8 +13,6 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// TODO: control everything with discord commands
-
 type CommandContext struct {
 	s     *discordgo.Session
 	m     *discordgo.MessageCreate
@@ -23,14 +21,14 @@ type CommandContext struct {
 
 var (
 	Commands = map[string]func(ctx CommandContext){
-		`^!add(:a\d+)?(:s\d+)?$`: addFileCommand,
-		"^!remove$":              removeCommand,
-		"^!skipnext$":            skipCommand,
-		"^!unskipnext$":          unskipCommand,
-		"^!kill$":                nextCommand,
-		"^!current$":             currentCommand,
-		"^!search$":              searchCommand,
-		"^!filestreams$":         showFileStreamsCommand,
+		`^!add(:a[0-9-])?(:s[0-9-])?$`: addFileCommand,
+		"^!remove$":                    removeCommand,
+		"^!skipnext$":                  skipCommand,
+		"^!unskipnext$":                unskipCommand,
+		"^!kill$":                      nextCommand,
+		"^!current$":                   currentCommand,
+		"^!search$":                    searchCommand,
+		"^!filestreams$":               showFileStreamsCommand,
 	}
 )
 
@@ -103,7 +101,13 @@ func addFileCommand(ctx CommandContext) {
 				}
 			}
 		}
-		strims.AddFile(file, a, s)
+		if config.Stream.Bumps {
+			pre, err := createPreroll(filepath.Base(file))
+			if err == nil {
+				strims.AddFile(pre, "0", "-1", true)
+			}
+		}
+		strims.AddFile(file, a, s, false)
 		ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
 			Color:       0x7CFC00,
 			Title:       "Added to queue",

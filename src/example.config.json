@@ -6,6 +6,12 @@
   },
   "stream": {
     "ingest": "rtmp://fra-ingest.angelthump.com:1935/live/<your streamkey>",
-    "subtitles": false
+    "subtitles": false,
+    "bumps": false
+  },
+  "angelthump": {
+    "update_title": false,
+    "username": "",
+    "password": ""
   }
 }

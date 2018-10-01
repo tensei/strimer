@@ -1,0 +1,19 @@
+[Script Info]
+Title: 
+Original Script: slugalisk
+Update Details: 
+ScriptType: v4.00+
+Collisions: Normal
+PlayDepth: 0
+Timer: 100,0000
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,DejaVuSans-Bold,26,&H00FFFFFF,&H0000FFFF,&H4B000000,&HFF404040,-1,0,0,0,100,100,0,0,1,1,0,5,20,20,20,0
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:5.00,0:00:10.00,*Default,,0000,0000,0000,,what if there is more to life than chinese cartoons
+Dialogue: 0,0:00:10.00,0:00:12.00,*Default,,0000,0000,0000,,we don't want to know either
+Dialogue: 0,0:00:12.00,0:00:15.00,*Default,,0000,0000,0000,,more\N[[file]]\Nnext
+Dialogue: 0,0:00:15.00,0:00:20.00,Default,,0000,0000,0000,,[tensei]

@@ -1,0 +1,23 @@
+ffmpeg \
+  -ss 02:21:50.000 \
+  -i "./data/input.mp4" \
+  -ss 00:00:40.000 \
+  -i "./data/input.mp3" \
+  -map 0:v:0 \
+  -map 1:a:0 \
+  -c:v libx264 \
+  -pix_fmt yuv420p \
+  -preset faster \
+  -b:v 3500k \
+  -maxrate 3500k \
+  -x264-params keyint=60 \
+  -c:a aac \
+  -strict -2 \
+  -ar 44100 \
+  -b:a 160k \
+  -ac 2 \
+  -bufsize 7000k \
+  -t 22 \
+  -af "volume='if (between(t, 0, 20.5), if (between(t, 0, 5), t / 5, if (between(t, 20, 20.5), 1 - (t - 20) / 0.5, 1)), 0)':eval=frame" \
+  -vf "ass=$1" \
+  ./data/tempprerolls/$2.mp4

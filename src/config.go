@@ -15,7 +15,9 @@ type Config struct {
 	Stream struct {
 		Ingest    string `json:"ingest"`
 		Subtitles bool   `json:"subtitles"`
+		Bumps     bool   `json:"bumps"`
 	} `json:"stream"`
+	Angelthump Angelthump `json:"angelthump"`
 }
 
 func LoadConfig() Config {

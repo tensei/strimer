@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"crypto/md5"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -36,10 +40,12 @@ type Stream struct {
 	File          string
 	audiotrack    string
 	subtitletrack string
+	ispreroll     bool
 
 	cmd *exec.Cmd
 
 	streaming bool
+	Restart   bool
 
 	StartTime time.Time
 	EndTime   time.Time
@@ -49,6 +55,12 @@ func main() {
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
 
 	config = LoadConfig()
+	if config.Angelthump.UpdateTitle {
+		err := config.Angelthump.Login()
+		if err != nil {
+			log.Fatalf("error logging in Angelthump: %v", err)
+		}
+	}
 	strims = NewStrims()
 
 	d := NewDiscord(config.Discord.Token)
@@ -71,7 +83,7 @@ func NewStrims() *Strims {
 	}
 }
 
-func (s *Strims) AddFile(file, audiotrack, subtitletrack string) {
+func (s *Strims) AddFile(file, audiotrack, subtitletrack string, ispreroll bool) {
 	if audiotrack == "" {
 		audiotrack = "0"
 	}
@@ -82,6 +94,7 @@ func (s *Strims) AddFile(file, audiotrack, subtitletrack string) {
 		File:          file,
 		audiotrack:    audiotrack,
 		subtitletrack: subtitletrack,
+		ispreroll:     ispreroll,
 		cmd:           createCmd(file, audiotrack, subtitletrack),
 	})
 }
@@ -101,10 +114,6 @@ func (s *Strims) StartStreaming() {
 
 		stream := s.Queue[0]
 
-		s.QueueMutex.Lock()
-		s.Queue = s.Queue[1:]
-		s.QueueMutex.Unlock()
-
 		if s.SkipNext {
 			log.Printf("SKIPPING %s", filepath.Base(stream.File))
 			s.SkipNext = false
@@ -119,6 +128,12 @@ func (s *Strims) StartStreaming() {
 			continue
 		}
 		go stream.Wait(done)
+		if !stream.ispreroll {
+			err := config.Angelthump.ChangeTitle(filepath.Base(stream.File))
+			if err != nil {
+				log.Println(err)
+			}
+		}
 
 		select {
 		case err := <-done:
@@ -129,6 +144,18 @@ func (s *Strims) StartStreaming() {
 			if err := stream.Kill(); err != nil {
 				log.Println(err)
 			}
+		}
+
+		if stream.Restart {
+			stream.Restart = false
+			continue
+		}
+
+		s.QueueMutex.Lock()
+		s.Queue = s.Queue[1:]
+		s.QueueMutex.Unlock()
+		if stream.ispreroll {
+			os.Remove(stream.File)
 		}
 		log.Printf("%d more in queue", len(s.Queue))
 	}
@@ -165,6 +192,7 @@ func createCmd(file, a, s string) *exec.Cmd {
 		if strings.Contains(streams, "hdmv_pgs_subtitle") {
 			subarg = fmt.Sprintf(`-tune animation -filter_complex "[0:v][0:s:%s]overlay[v]" -map "[v]" -map 0:a:%s `, s, a)
 		} else {
+			// title := fmt.Sprintf(`-vf "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='%s':fontcolor=white:x=(w-text_w)/2:y=16:fontsize=12" `, filepath.Base(file))
 			subarg = fmt.Sprintf("-tune animation -vf subtitles='%s':si=%s ", regexp.QuoteMeta(file), s)
 		}
 	}
@@ -198,4 +226,39 @@ func getStreams(file string) string {
 		return err.Error()
 	}
 	return string(out)
+}
+
+func createPreroll(file string) (string, error) {
+	ass, err := createPrerollAss(file)
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(strings.Replace(ass, "\\", "/", -1))
+	m := md5.New()
+	io.WriteString(m, fmt.Sprintf("%s%d", file, time.Now().Unix()))
+	args := []string{
+		"bash",
+		"-c",
+		fmt.Sprintf("./data/clip.sh %s %x", strings.Replace(ass, "\\", "/", -1), m.Sum(nil)),
+	}
+	cmd := exec.Command(args[0], args[1:]...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("%s, %v", out, err)
+	}
+	return fmt.Sprintf("./data/tempprerolls/%x.mp4", m.Sum(nil)), nil
+}
+
+func createPrerollAss(name string) (string, error) {
+	asst, err := ioutil.ReadFile("./data/template.ass")
+	if err != nil {
+		return "", err
+	}
+	asst = bytes.Replace(asst, []byte("[[file]]"), []byte(name), -1)
+	temp, err := ioutil.TempFile("./data/tempasses", "*.ass")
+	if err != nil {
+		return "", err
+	}
+	temp.Write(asst)
+	temp.Close()
+	return temp.Name(), nil
 }
