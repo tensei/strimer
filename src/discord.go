@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -21,14 +22,15 @@ type CommandContext struct {
 
 var (
 	Commands = map[string]func(ctx CommandContext){
-		`^!add(:a[0-9-])?(:s[0-9-])?$`: addFileCommand,
-		"^!remove$":                    removeCommand,
-		"^!skipnext$":                  skipCommand,
-		"^!unskipnext$":                unskipCommand,
-		"^!kill$":                      nextCommand,
-		"^!current$":                   currentCommand,
-		"^!search$":                    searchCommand,
-		"^!filestreams$":               showFileStreamsCommand,
+		`^!add(:a[0-9-])?(:s[0-9-])?$`:       addFileCommand,
+		`^!addfolder(:a[0-9-])?(:s[0-9-])?$`: addFolderCommand,
+		"^!remove$":                          removeCommand,
+		"^!skipnext$":                        skipCommand,
+		"^!unskipnext$":                      unskipCommand,
+		"^!kill$":                            nextCommand,
+		"^!current$":                         currentCommand,
+		"^!search$":                          searchCommand,
+		"^!filestreams$":                     showFileStreamsCommand,
 	}
 )
 
@@ -292,6 +294,70 @@ func showFileStreamsCommand(ctx CommandContext) {
 	})
 }
 
+func addFolderCommand(ctx CommandContext) {
+	args := strings.SplitN(ctx.m.Content, " ", 2)
+	if len(args) < 2 {
+		return
+	}
+	m := regexp.MustCompile(ctx.regex).FindAllStringSubmatch(args[0], -1)
+	a, s := "0", "0"
+	if len(m) > 0 {
+		for _, arg := range m[0][1:] {
+			if arg == "" {
+				continue
+			}
+			log.Println(arg, "jj")
+			if arg[1] == 'a' {
+				a = arg[2:]
+			}
+			if arg[1] == 's' {
+				s = arg[2:]
+			}
+		}
+	}
+
+	folder := args[1]
+	f, err := os.Open(filepath.Join(config.Discord.MediaFolder, folder))
+	if err != nil {
+		ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
+			Color:       0xFFA500,
+			Description: fmt.Sprintf("couldn't find folder for %s", args[1]),
+		})
+		return
+	}
+	files, _ := f.Readdir(0)
+
+	tmp := []string{}
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		tmp = append(tmp, file.Name())
+	}
+	sort.Strings(tmp)
+
+	ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
+		Color:       0x7CFC00,
+		Title:       args[1],
+		Description: fmt.Sprintf("starting to add %d files", len(tmp)),
+	})
+
+	for _, n := range tmp {
+		if config.Stream.Bumps {
+			pre, err := createPreroll(filepath.Base(n))
+			if err == nil {
+				strims.AddFile(pre, "0", "-1", true)
+			}
+		}
+		strims.AddFile(filepath.Join(config.Discord.MediaFolder, args[1], n), a, s, false)
+	}
+
+	ctx.s.ChannelMessageSendEmbed(ctx.m.ChannelID, &discordgo.MessageEmbed{
+		Color:       0x7CFC00,
+		Title:       args[1],
+		Description: fmt.Sprintf("added %d files", len(tmp)),
+	})
+}
 func isOwner(id string) bool {
 	return strings.EqualFold(config.Discord.OwnerID, id)
 }

@@ -189,7 +189,7 @@ func createCmd(file, a, s string) *exec.Cmd {
 	subarg := ""
 	if s != "-1" && config.Stream.Subtitles {
 		streams := getStreams(file)
-		if strings.Contains(streams, "hdmv_pgs_subtitle") {
+		if strings.Contains(streams, "hdmv_pgs_subtitle") || strings.Contains(streams, "dvd_subtitle") {
 			subarg = fmt.Sprintf(`-tune animation -filter_complex "[0:v][0:s:%s]overlay[v]" -map "[v]" -map 0:a:%s `, s, a)
 		} else {
 			// title := fmt.Sprintf(`-vf "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='%s':fontcolor=white:x=(w-text_w)/2:y=16:fontsize=12" `, filepath.Base(file))
