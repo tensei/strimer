@@ -193,7 +193,7 @@ func createCmd(file, a, s string) *exec.Cmd {
 			subarg = fmt.Sprintf(`-tune animation -filter_complex "[0:v][0:s:%s]overlay[v]" -map "[v]" -map 0:a:%s `, s, a)
 		} else {
 			// title := fmt.Sprintf(`-vf "drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:text='%s':fontcolor=white:x=(w-text_w)/2:y=16:fontsize=12" `, filepath.Base(file))
-			subarg = fmt.Sprintf("-tune animation -vf subtitles='%s':si=%s ", regexp.QuoteMeta(file), s)
+			subarg = fmt.Sprintf("-tune animation -vf subtitles='%s':si=%s -map 0:0 -map 0:a:%s ", regexp.QuoteMeta(file), s, a)
 		}
 	}
 	// TODO video, audio and subtitle track stuff
