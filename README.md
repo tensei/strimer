@@ -13,22 +13,31 @@ Edit docker-compose.yml
         network_mode: "host"
         restart: unless-stopped
         volumes:
-        - /path/to/your/media/folder/here/:/path/to/your/media/folder/here/
+        - /path/to/your/media/folder/here/:/media/
 
-same path in config.json
+Edite config.json
+
+Don't enable bumps unless you know what you're doing
 
     {
         "discord": {
-            "owner_id": "<your discord id>",
-            "token": "<your bot token>",
-            "media_folder": "/path/to/your/media/folder/here/"
+            "owner_id": "105739663192363008",
+            "token": "<bot token>",
+            "media_folder": "/media/"
         },
         "stream": {
-            "ingest": "rtmp://fra-ingest.angelthump.com:1935/live/<your streamkey>",
-            "subtitles": false
+            "ingest": "rtmp://fra-ingest.angelthump.com:1935/live/xxx",
+            "subtitles": true,
+            "bumps": false
+        },
+        "angelthump": {
+            "update_title": false,
+            "username": "",
+            "password": ""
         }
     }
 
 ## Docker
 
+    docker-compose build
     docker-compose up -d
